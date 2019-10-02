@@ -1,7 +1,13 @@
 import React from 'react';
 import { mount } from 'enzyme';
 import fetchMock from 'fetch-mock';
+import { Provider } from 'react-redux';
+import { createStore } from 'redux';
+import rootReducer from './reducers';
+
 import App from './App';
+import articles from './reducers/articles';
+import AppContainer from './App.container';
 
 const ARTICLES = [
   { name: 'Hiking shoes', weight: 0.7 },
@@ -11,13 +17,13 @@ const ARTICLES = [
 
 describe('App', () => {
   let appWrapper;
+  let state;
 
   beforeEach(() => {
     fetchMock.mock(
       'https://packing-list-weight-api.herokuapp.com/articles',
       ARTICLES
     );
-    appWrapper = mount(<App />);
   });
 
   afterEach(() => {
@@ -26,6 +32,18 @@ describe('App', () => {
 
   describe('before articles fetched', () => {
     it('should render loading status', () => {
+      const props = {
+        areArticlesBeingFetched: true,
+        fetchArticles: jest.fn(),
+      };
+
+      appWrapper = mount(<App {...state} {...props} />);
+
+      state = {
+        areArticlesBeingFetched: true,
+        articles: [],
+      };
+
       expect(
         appWrapper.update().find({ 'data-selector': 'App-isLoading' })
       ).toHaveLength(1);
@@ -34,6 +52,15 @@ describe('App', () => {
 
   describe('after articles fetched', () => {
     it('should render article list', done => {
+      const store = createStore(rootReducer);
+      articles(state, { type: 'FETCH_ARTICLES__RESOLVE', articles: ARTICLES });
+
+      appWrapper = mount(
+        <Provider store={store}>
+          <AppContainer {...state} />
+        </Provider>
+      );
+
       setImmediate(() => {
         expect(
           appWrapper.update().find({ 'data-selector': 'Article' })
@@ -83,10 +110,25 @@ describe('App', () => {
       });
 
       it('should render sum of weights as weight of selected articles', done => {
+        const store = createStore(rootReducer);
+        state = ARTICLES;
+
+        appWrapper = mount(
+          <Provider store={store}>
+            <AppContainer {...state} />
+          </Provider>
+        );
+
+        articles(state, {
+          type: 'TOGGLE_ARTICLE_SELECTION',
+        });
+
         setImmediate(() => {
           const checkboxes = appWrapper.update().find('input[type="checkbox"]');
           checkboxes.at(0).simulate('change', { target: { checked: true } });
           checkboxes.at(1).simulate('change', { target: { checked: true } });
+          // eslint-disable-next-line no-console
+          console.log(appWrapper.html());
 
           expect(appWrapper.find({ 'data-selector': 'Weight' }).html()).toMatch(
             `${ARTICLES[0].weight + ARTICLES[1].weight}kg`
